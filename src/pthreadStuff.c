@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <limits.h>
 
 #define STORAGELEN 100	//	Just a number from the preprocessor. Defines are always written in capital
 const size_t storagelen=STORAGELEN;	// A typed constant that can be used elsewhere
@@ -15,6 +16,8 @@ pthread_t producers[PRODUCERCOUNT];
 const size_t producercount = PRODUCERCOUNT;
 
 int stop = 0;		//	Flag for stopping threads
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;		// https://www.ibm.com/support/knowledgecenter/en/ssw_aix_71/generalprogramming/mutexes.html
+
 void printArray(char* header, int* array, size_t len);	//	Header for function
 size_t findEmpty(int* array, int emptyValue, int len);
 
@@ -25,10 +28,17 @@ void* producer(void* arg) {
 	for (;;) {
 
 		if (stop) break;		//	Get out of the loop
+
+		pthread_mutex_lock(&mutex);		// Begin critical section. There's also a 'trylock'
+
 		size_t i = findEmpty(storage,0,storagelen);
-		if (i >=  storagelen) break;
-		storage[i] = product;
-		productcount++;
+		if (i <  storagelen) {
+			storage[i] = product;
+			productcount++;
+		}
+
+		pthread_mutex_unlock(&mutex);		//	Mutex unlock
+
 		usleep(rand()%1000 + 1000);		//	Sleep for .999 to 1.999 seconds
 
 	}
@@ -46,6 +56,10 @@ int main(int argc, char *argv[]) {
 		pthread_create(&producers[i],&attr,producer,(void*)(i+1));		//	https://www.ibm.com/support/knowledgecenter/ssw_ibm_i_72/apis/users_14.htm
 
 	}
+
+	char buf[256];
+	gets(buf);
+	stop = 1;
 
 	for (i = 0; i < producercount; i++)
 		pthread_join(producers[i],NULL);
